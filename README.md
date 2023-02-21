@@ -15,6 +15,11 @@ Useful CLI commands:
   ```
 
 Useful blender python commands:
+- install pip packages:
+  ```
+  import pip
+  pip.main(['install', 'Ipython'])
+  ```
 - use opened scripts as modules in the Python console:
   ```
   mymod = bpy.data.texts[0].as_module()
