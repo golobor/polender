@@ -1,75 +1,9 @@
-import bpy
-import mathutils
 import numpy as np
 
+import bpy
 
-def hide_obj(obj, t):
-    bpy.context.scene.frame_set(t)
-    obj.hide = True
-    obj.keyframe_insert('hide')      
-    obj.hide_render = True
-    obj.keyframe_insert('hide_render')
-
-
-def unhide_obj(obj, t):
-    bpy.context.scene.frame_set(t)
-    obj.hide = False
-    obj.keyframe_insert('hide')      
-    obj.hide_render = False
-    obj.keyframe_insert('hide_render')
-
-
-def clone_obj(obj):
-    bpy.context.scene.objects.active = obj
-    bpy.ops.object.select_all(action='DESELECT')
-    obj.select = True
-    bpy.ops.object.duplicate(linked=True)
-    return bpy.context.scene.objects.active
-
-
-# def add_curve(
-#         coords,
-#         thickness = 0.2,
-#         name='polymer', 
-#         resolution=4,
-#         kind='BEZIER'):
-#     # create the Curve Datablock
-#     curveData = bpy.data.curves.new(name+'_curve', type='CURVE')
-#     curveData.dimensions = '3D'
-#     curveData.resolution_u = resolution
-
-#     # map coords to spline
-#     if kind == 'NURBS':
-#         polyline = curveData.splines.new('NURBS')
-#         polyline.points.add(len(coords)-1)
-#         for i, coord in enumerate(coords):
-#             x,y,z = coord
-#             polyline.points[i].co = (x, y, z, 1)
-#     elif kind == 'BEZIER':
-#         polyline = curveData.splines.new('BEZIER')
-#         polyline.bezier_points.add(len(coords)-1)
-#         for i, coord in enumerate(coords):
-#             polyline.bezier_points[i].co = coord
-
-#         for point in polyline.bezier_points:
-#             point.handle_left_type="AUTO"
-#             point.handle_right_type="AUTO"
-
-#     # create Object
-#     curveOB = bpy.data.objects.new(name+'_obj', curveData)
-
-#     # attach to scene and validate context
-#     bpy.context.scene.collection.objects.link(curveOB)
-#     bpy.context.view_layer.objects.active = curveOB
-#     curveOB.select_set(True)
-
-#     curveOB.data.resolution_u     = resolution     # Preview U
-#     curveOB.data.fill_mode        = 'FULL' # Fill Mode ==> Full
-#     curveOB.data.bevel_depth      = thickness   # Bevel Depth
-#     curveOB.data.bevel_resolution = resolution      # Bevel Resolution
-
-#     return curveData, curveOB
-
+from mathutils import Vector
+from bpy_extras.object_utils import object_data_add
 
 def add_curve(
         coords, 
@@ -96,6 +30,7 @@ def add_curve(
         polyline = curveData.splines.new('NURBS')
         polyline.points.add(len(coords)-1)
         polyline.points.foreach_set('co', np.hstack([coords, np.ones((len(coords), 1))]).flatten())
+
     elif kind == 'POLY':
         polyline = curveData.splines.new('POLY')
         polyline.points.add(len(coords)-1)
@@ -116,34 +51,9 @@ def add_curve(
     curveOB.data.bevel_resolution = resolution      # Bevel Resolution
     
     if kind == 'BEZIER' and smooth_bezier:
-        smooth_bezier_curve(curveOB)
-
-    # if kind == 'BEZIER' and smooth_bezier:
-    #     for point in polyline.bezier_points:
-    #         point.handle_left_type='AUTO'
-    #         point.handle_right_type='AUTO'
-    # else:
-    #     # this doesn't change the handle, but i'll try to anyway...
-    #     left_type_enum = (
-    #         bpy.types.BezierSplinePoint
-    #         .bl_rna.properties['handle_left_type']
-    #         .enum_items['AUTO'].value)
-    #     right_type_enum = (
-    #         bpy.types.BezierSplinePoint
-    #         .bl_rna.properties['handle_right_type']
-    #         .enum_items['AUTO'].value)
-    #     polyline.bezier_points.foreach_set('handle_left_type', [left_type_enum]*len(coords)) # 'AUTO'?..
-    #     polyline.bezier_points.foreach_set('handle_right_type', [right_type_enum]*len(coords)) # 'AUTO'?..
-
-    
+        smooth_bezier_curve(curveOB)    
 
     return curveData, curveOB
-
-
-# def smooth_curve_expensive(curve):
-#     for point in curve.splines[0].bezier_points:        
-#         point.handle_left_type='AUTO'
-#         point.handle_right_type='AUTO'
 
 
 def smooth_bezier_curve(curve_obj):
@@ -156,6 +66,12 @@ def smooth_bezier_curve(curve_obj):
     bpy.ops.curve.normals_make_consistent(False)
     bpy.ops.curve.select_all(action='DESELECT')
     bpy.ops.object.mode_set(mode = 'OBJECT')
+
+    
+    # The more expensive way to do it:
+    #     for point in curve.splines[0].bezier_points:        
+    #         point.handle_left_type='AUTO'
+    #         point.handle_right_type='AUTO'
 
 
 def add_keyframe_curve(
@@ -191,7 +107,6 @@ def create_animated_curve(
     resolution=4,
     kind='BEZIER'):
 
-
     curve, obj = add_curve(
         ds[0],
         thickness=thickness,
@@ -207,40 +122,6 @@ def create_animated_curve(
         add_keyframe_curve(name, d, t)
 
 
-
-
-
-#def get_rot_from_vec(p1, p2):
-#    dx = p2[0] - p1[0]
-#    dy = p2[1] - p1[1]
-#    dz = p2[2] - p1[2]
-#    dist = np.sqrt(dx*dx + dy*dy + dz*dz)
-#    phi = np.arctan2(dy, dx) 
-#    theta = np.arccos(dz/dist) 
-#    return np.array([0, theta, phi])
-
-def get_rot_from_vec(vec, axes=('Y','X')):
-    return mathutils.Vector(vec).to_track_quat(*axes).to_euler()
-
-def align_four_points(p1, p2, p3, p4):
-    p1 = np.array(p1)
-    p2 = np.array(p2)
-    p3 = np.array(p3)
-    p4 = np.array(p4)
-    loc = (p1 + p2 + p3 + p4)/4
-    rot = get_rot_from_vec( (p3+p4) / 2 - loc )
-    return loc, rot
-
-
-def set_loc_rot(obj, loc, rot, keyframe_t=None):
-    obj.location = loc
-    obj.rotation_euler = rot
-
-    if keyframe_t is not None:
-        obj.keyframe_insert(data_path="location", frame = keyframe_t)
-        obj.keyframe_insert(data_path="rotation_euler", frame = keyframe_t)
-
-    
 def add_torus(
     major_radius,
     minor_radius,
@@ -310,8 +191,6 @@ def add_backdrop(s=100,
                  bevel_width_frac=0.15, 
                  bevel_segments=10,
                  mat=(1,1,1,1)):
-    from bpy_extras.object_utils import object_data_add
-    from mathutils import Vector
 
     hs = s/2
     verts = [
@@ -340,3 +219,49 @@ def add_backdrop(s=100,
         backdrop_obj.active_material = mat_obj
     
     return backdrop_obj
+
+
+
+
+# def add_curve(
+#         coords,
+#         thickness = 0.2,
+#         name='polymer', 
+#         resolution=4,
+#         kind='BEZIER'):
+#     # create the Curve Datablock
+#     curveData = bpy.data.curves.new(name+'_curve', type='CURVE')
+#     curveData.dimensions = '3D'
+#     curveData.resolution_u = resolution
+
+#     # map coords to spline
+#     if kind == 'NURBS':
+#         polyline = curveData.splines.new('NURBS')
+#         polyline.points.add(len(coords)-1)
+#         for i, coord in enumerate(coords):
+#             x,y,z = coord
+#             polyline.points[i].co = (x, y, z, 1)
+#     elif kind == 'BEZIER':
+#         polyline = curveData.splines.new('BEZIER')
+#         polyline.bezier_points.add(len(coords)-1)
+#         for i, coord in enumerate(coords):
+#             polyline.bezier_points[i].co = coord
+
+#         for point in polyline.bezier_points:
+#             point.handle_left_type="AUTO"
+#             point.handle_right_type="AUTO"
+
+#     # create Object
+#     curveOB = bpy.data.objects.new(name+'_obj', curveData)
+
+#     # attach to scene and validate context
+#     bpy.context.scene.collection.objects.link(curveOB)
+#     bpy.context.view_layer.objects.active = curveOB
+#     curveOB.select_set(True)
+
+#     curveOB.data.resolution_u     = resolution     # Preview U
+#     curveOB.data.fill_mode        = 'FULL' # Fill Mode ==> Full
+#     curveOB.data.bevel_depth      = thickness   # Bevel Depth
+#     curveOB.data.bevel_resolution = resolution      # Bevel Resolution
+
+#     return curveData, curveOB

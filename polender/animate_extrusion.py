@@ -4,12 +4,12 @@ import math
 
 from mathutils import Vector
 
+from .dynamics import animate_linear_shift
 
-def make_softbody_hooked_chain(
+def make_hooked_chain(
     n_nodes,
     step,
 ):
-
     # Create a new collection for hooks
     hooks_collection = bpy.data.collections.new("Hooks")
     bpy.context.scene.collection.children.link(hooks_collection)
@@ -121,16 +121,14 @@ def add_smooth_skin(obj, skin_radius=0.5):
     subsurf_mod = obj.modifiers.new(name="Subdivision", type='SUBSURF')
     subsurf_mod.levels = 2  # Viewport subdivisions
     subsurf_mod.render_levels = 2  # Render subdivisions
-    subsurf_mod.quality = 3  # Subdivision quality
-    
+    subsurf_mod.quality = 3  # Subdivision qualitys
+
     # Add Skin modifier
     skin_mod = obj.modifiers.new(name="Skin", type='SKIN')
     
-    # Adjust skin thickness
-    if obj.type == 'MESH':
-        skin_data = obj.data.skin_vertices[0].data
-        for skin_vert in skin_data:
-            skin_vert.radius = (skin_radius, skin_radius)  # (X, Y) radius for each vertex
+    skin_data = obj.data.skin_vertices[0].data
+    for skin_vert in skin_data:
+        skin_vert.radius = (skin_radius, skin_radius)  # (X, Y) radius for each vertex
 
 
 def change_hooks_strength(new_strength):
@@ -141,36 +139,6 @@ def change_hooks_strength(new_strength):
             # If modifier is a hook
             if mod.type == 'HOOK':
                 mod.strength = new_strength # Change this value (0.0 to 1.0)
-
-
-def animate_linear_shift(objects, shift_vector, time_span):
-    """
-    Animate objects shifting their positions over time.
-    """
-    t_lo, t_hi = time_span
-    shift_vector = Vector(shift_vector)
-    
-    for obj in objects:
-        # Record start position and insert keyframe
-        bpy.context.scene.frame_set(int(t_lo))
-        obj.keyframe_insert(data_path="location", frame=t_lo)
-        
-        # Set end position and insert keyframe
-        bpy.context.scene.frame_set(int(t_hi))
-        obj.location += shift_vector
-        obj.keyframe_insert(data_path="location", frame=t_hi)
-        
-        # If object has keyframes between start and end, adjust them
-        if obj.animation_data and obj.animation_data.action:
-            for fc in obj.animation_data.action.fcurves:
-                if fc.data_path == "location":
-                    for kp in fc.keyframe_points:
-                        if t_lo < kp.co[0] < t_hi:
-                            t = (kp.co[0] - t_lo) / (t_hi - t_lo)
-                            kp.co[1] += shift_vector[fc.array_index] * t
-                        elif kp.co[0] > t_hi:
-                            kp.co[1] += shift_vector[fc.array_index]
-                    fc.update()
 
 
 def _animate_extrusion_threading(
@@ -251,36 +219,36 @@ def _animate_extrusion_no_tails(
 
     mid_loop_idx = len(hooks_loop) // 2
 
-    mid_loop_pos = ( hooks_loop[mid_loop_idx].location 
+    mid_loop_loc = ( hooks_loop[mid_loop_idx].location 
                    + hooks_loop[mid_loop_idx+1].location) / 2
                    
-    left_anchor_pos =  mid_loop_pos + Vector((- loop_base_width / 2, 0, 0))
-    right_anchor_pos = mid_loop_pos + Vector((  loop_base_width / 2, 0, 0))
+    left_anchor_loc =  mid_loop_loc + Vector((- loop_base_width / 2, 0, 0))
+    right_anchor_loc = mid_loop_loc + Vector((  loop_base_width / 2, 0, 0))
 
     
     _animate_extrusion_threading(
         hooks_loop[0:mid_loop_idx+1][::-1],
         time_span,
-        left_anchor_pos,
-        left_anchor_pos + Vector((0, step, 0)),
+        left_anchor_loc,
+        left_anchor_loc + Vector((0, step, 0)),
     )
 
     _animate_extrusion_threading(
         hooks_loop[mid_loop_idx+1:],
         time_span,
-        right_anchor_pos,
-        right_anchor_pos + Vector((0, step, 0)),
+        right_anchor_loc,
+        right_anchor_loc + Vector((0, step, 0)),
     )
     
     _animate_loop_final_conformation(
         hooks_loop,
         time_span[1],
         step,
-        mid_loop_pos + Vector((0, step, 0)),
+        mid_loop_loc + Vector((0, step, 0)),
         skip_stem=True
     )
 
-    return left_anchor_pos, right_anchor_pos
+    return left_anchor_loc, right_anchor_loc
 
 
 def animate_loop_extrusion(
@@ -295,7 +263,7 @@ def animate_loop_extrusion(
     # Get all empties with the given prefix, sorted by name
 
 
-    left_anchor_pos, right_anchor_pos = _animate_extrusion_no_tails(
+    left_anchor_loc, right_anchor_loc = _animate_extrusion_no_tails(
         hooks[slice(*loop_span)],
         time_span = time_span,
         loop_base_width = loop_base_width,
@@ -305,14 +273,16 @@ def animate_loop_extrusion(
     bpy.context.scene.frame_set(int(time_span[0]))
     animate_linear_shift(
         hooks[:loop_span[0]], 
-        left_anchor_pos - hooks[loop_span[0]].location,
+        left_anchor_loc - hooks[loop_span[0]].location,
         time_span)
         
     bpy.context.scene.frame_set(int(time_span[0]))
     animate_linear_shift(
         hooks[loop_span[1]:], 
-        right_anchor_pos - hooks[loop_span[1]-1].location,
+        right_anchor_loc - hooks[loop_span[1]-1].location,
         time_span)
+    
+    return left_anchor_loc, right_anchor_loc
 
 
 def animate_looparray_extrusion(
@@ -354,72 +324,12 @@ def animate_looparray_extrusion(
             time_span)
 
 
-def insert_pause(t, duration):
-    """
-    Introduces a pause into the animation at time t for a given duration.
-    Operates on location only.
-
-    Parameters:
-    t (int): The time at which to introduce the pause.
-    duration (int): The duration of the pause.
-    """
-    t = int(t)
-    duration = int(duration)
-
-    # Go to time t
-    bpy.context.scene.frame_set(t)
-    
-    for obj in bpy.context.scene.objects:
-        # Insert a keyframe at time t
-        loc = obj.location.copy()
-        obj.keyframe_insert(data_path="location", frame=t)
-    
-        # Shift all keyframes after time t by duration
-        for obj in bpy.context.scene.objects:
-            for fcurve in obj.animation_data.action.fcurves:
-                for keyframe in fcurve.keyframe_points:
-                    if keyframe.co.x > t:
-                        keyframe.co.x += duration
-        
-        # Insert a second keyframe at time t + duration
-        bpy.context.scene.frame_set(t + duration)
-        obj.location = loc
-        obj.keyframe_insert(data_path="location", frame=t + duration)
- 
-    
-def clear_animation(objs):
-    if objs is None:
-        objs = bpy.context.scene.objects
-        
-    # Remove animation from all objects
-    for obj in objs:
-        obj.animation_data_clear()
-
-    # # Optional: also remove unused actions
-    # for action in bpy.data.actions:
-    #     bpy.data.actions.remove(action)
-
-
-def add_fcurve_noise(empty_objects, strength=10.0):
-    for obj in empty_objects:
-        # Create a dummy keyframe to generate F-curves
-        obj.location = obj.location
-        
-        # Add noise modifier to each F-curve
-        if obj.animation_data and obj.animation_data.action:
-            for fcurve in obj.animation_data.action.fcurves:
-                noise = fcurve.modifiers.new('NOISE')
-                noise.strength = strength
-                noise.scale = 20
-                noise.phase = hash(obj.name + str(fcurve.array_index)) % 1000  # Random phase per axis per object
-                noise.use_restricted_range = False
-
-
 def animate_resume_extrusion(
     hooks,
     prev_loop,
     new_loop,
     time_span,
+    step,
     delay_extrusion=0,
 ):
     # only right-sided extrusion is implemented
@@ -439,7 +349,7 @@ def animate_resume_extrusion(
             hooks[prev_loop[1]:new_loop[1]],
             time_span = extrusion_time_span,
             loop_stem_base_loc = prev_loop_locs[1],
-            loop_stem_tip_loc = prev_loop_locs[1] + Vector((0, STEP, 0)),
+            loop_stem_tip_loc = prev_loop_locs[1] + Vector((0, step, 0)),
             last_stays_at_stem_base=True,
     )
 
@@ -451,132 +361,16 @@ def animate_resume_extrusion(
     _animate_loop_final_conformation(
         hooks_loop=hooks[slice(*prev_loop)],
         t=time_span[0],
-        step=STEP,
-        stem_tip_loc=(prev_loop_mid_loc + Vector((0, STEP, 0))),
+        step=step,
+        stem_tip_loc=(prev_loop_mid_loc + Vector((0, step, 0))),
         skip_stem=True
     )
 
     _animate_loop_final_conformation(
         hooks_loop=hooks[slice(*new_loop)],
         t=time_span[1],
-        step=STEP,
-        stem_tip_loc=(prev_loop_mid_loc + Vector((0, STEP, 0))),
+        step=step,
+        stem_tip_loc=(prev_loop_mid_loc + Vector((0, step, 0))),
         skip_stem=True
     )
 
-
-N_NODES = 200
-STEP = 8
-
-
-chain, hooks = make_softbody_hooked_chain(N_NODES, STEP)
-
-add_fiber_softbody(chain)
-add_smooth_skin(chain, skin_radius=0.75)
-
-condensin_1st_loop = (55, 70)
-condensin_2nd_loop = (55, 85)
-condensin_3rd_loop = (55, 102)
-cohesin_loop = (90, 102)
-
-animate_loop_extrusion(
-    hooks,
-    loop_span = cohesin_loop,
-    time_span = (0, 20),
-    loop_base_width = 2.5,
-    step = STEP,
-    )
-
-bpy.context.scene.frame_set(20)
-clear_animation(None)
-
-bpy.context.scene.frame_set(0)
-        
-animate_loop_extrusion(
-    hooks,
-    loop_span = (condensin_1st_loop),
-    time_span = (150, 350),
-    loop_base_width = 2.5,
-    step = STEP,
-    )
-
-animate_resume_extrusion(
-    hooks,
-    prev_loop=condensin_1st_loop,
-    new_loop=condensin_2nd_loop,
-    time_span=(525, 625),
-    delay_extrusion=30,
-)
-
-animate_resume_extrusion(
-    hooks,
-    prev_loop=condensin_2nd_loop,
-    new_loop=condensin_3rd_loop,
-    time_span=(700, 800),
-    delay_extrusion=30,
-)
-
-
-
-
-add_fcurve_noise(hooks)
-
-
-
-#animate_looparray_extrusion(
-#    hooks,
-#    [(50, 60), (20, 80)],
-#    [(0, 20), (20, 80)],
-#    loop_base_width = 2.5,
-#    step = 4,
-#    )
-
-
-#for i in range(0, len(hooks):
-#    hook = hooks[i]
-#    if hook.animation_data and hook.animation_data.action:
-#        for fcurve in hook.animation_data.action.fcurves:
-#            for keyframe in fcurve.keyframe_points:
-#                keyframe.interpolation = 'BEZIER'
-#                keyframe.easing = 'AUTO'
-
-
-# def matches_template(template, string, pattern_type='any'):
-#     # Convert format template to regex pattern
-#     pattern = re.escape(template)
-    
-#     if pattern_type == 'numbers':
-#         replacement = r'(\\d+)'  # Capture group added
-#     elif pattern_type == 'any':
-#         replacement = r'(.*?)'   # Capture group added
-#     elif pattern_type == 'word':
-#         replacement = r'(\\w+)'  # Capture group added
-#     else:
-#         raise ValueError("Invalid pattern_type. Use 'numbers', 'any', or 'word'")
-    
-#     pattern = re.sub(r'\\\{[^}]*\\\}', replacement, pattern)
-#     pattern = '^' + pattern + '$'
-    
-#     match = re.match(pattern, string)
-#     if match:
-#         # Return all captured groups
-#         if len(match.groups()) == 1:
-#             return match.group(1)  # Return single value if only one group
-#         return match.groups()      # Return tuple of all matches if multiple groups
-#     return None
-
-
-# def discover_objects(
-#         obj_name_template,
-#         obj_type='EMPTY',
-# ):
-
-#     objs = {int(idx):obj
-#             for obj in bpy.data.objects 
-#             if (idx:=matches_template(obj_name_template, obj.name)) is not None
-#             and ((obj_type is None) or (obj.type == obj_type))
-#             }
-        
-#     objs = dict(sorted(list(hooks.items()), key=lambda x:x[0]))
-
-#     return objs
