@@ -1,3 +1,5 @@
+import numpy as np
+
 import bpy
 import re
 import math
@@ -6,27 +8,31 @@ from mathutils import Vector
 
 from .dynamics import animate_linear_shift
 
+
 def make_hooked_chain(
     n_nodes,
     step,
+    root_loc = (0, 0, 0),
+    name='hooked_chain',
+    subobj_suffix='',
 ):
     # Create a new collection for hooks
-    hooks_collection = bpy.data.collections.new("Hooks")
-    bpy.context.scene.collection.children.link(hooks_collection)
-
-    # Clear existing objects
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete()
+    hooked_chain_collection = bpy.data.collections.new(name)
+    bpy.context.scene.collection.children.link(hooked_chain_collection)
 
     # Create a new mesh for the chain
-    mesh = bpy.data.meshes.new('chain')
-    obj = bpy.data.objects.new('chain', mesh)
-    bpy.context.scene.collection.objects.link(obj)
+    mesh = bpy.data.meshes.new('chain' + subobj_suffix)
+    obj = bpy.data.objects.new('chain' + subobj_suffix, mesh)
+    hooked_chain_collection.objects.link(obj)
     
     # Create vertices in a line
+    root_loc = Vector(root_loc)
+    step = (Vector(step) 
+            if isinstance(step, (list, tuple, Vector, np.ndarray)) 
+            else Vector((step, 0, 0)))
     vertices = []
     for i in range(n_nodes):
-        vertices.append(Vector((i * step, 0, 0)))
+        vertices.append(i * step + root_loc)
 
     # Create edges connecting vertices
     edges = []
@@ -42,11 +48,14 @@ def make_hooked_chain(
     obj.select_set(True)
 
     hook_empties = []
+    hooks_collection = bpy.data.collections.new('hooks' + subobj_suffix)
+    hooked_chain_collection.children.link(hooks_collection)
+
 
     # Create hooks and assign them
     for i in range(n_nodes):        
         # Create empty at the correct position
-        hook = bpy.data.objects.new(f"Hook_{i}_empty", None)
+        hook = bpy.data.objects.new(f'hook_{i}_empty'+subobj_suffix, None)
         
         hook.location = vertices[i].copy()
         
@@ -55,13 +64,13 @@ def make_hooked_chain(
 
         
         # Add hook modifier
-        hook_mod = obj.modifiers.new(name=f"Hook_{i}_mod", type='HOOK')
+        hook_mod = obj.modifiers.new(name=f'hook_{i}_mod'+subobj_suffix, type='HOOK')
         hook_mod.object = hook
         hook_mod.falloff_type = 'NONE'
         hook_mod.strength = 1.0
         
         # Create vertex group
-        vg = obj.vertex_groups.new(name=f"Hook_{i}_vg")
+        vg = obj.vertex_groups.new(name=f'hook_{i}_vg'+subobj_suffix)
         
         # Add exactly 5 vertices starting from start_idx
         vg.add([i], 1.0, 'REPLACE')
@@ -86,11 +95,6 @@ def make_hooked_chain(
 
 
 def add_fiber_softbody(obj):
-
-    # Final selection of chain object
-    bpy.context.view_layer.objects.active = obj
-    obj.select_set(True)
-
     # Add soft body modifier first
     soft_body = obj.modifiers.new(name="Softbody", type='SOFT_BODY')
     soft_body.settings.use_goal = True
