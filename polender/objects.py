@@ -5,6 +5,8 @@ import bpy
 from mathutils import Vector
 from bpy_extras.object_utils import object_data_add
 
+from .geoutils import alignment_quaternion
+
 def add_curve(
         coords, 
         thickness = 0.5,
@@ -220,6 +222,36 @@ def add_backdrop(s=100,
     
     return backdrop_obj
 
+
+
+def add_camera(loc=(0, 0, 100), 
+               direction=('Z', 'Y'),
+               focal_length=10,
+               clip_start=0.1,
+               clip_end=1000,
+               name='MainCamera',):
+    # Create camera
+    cam_data = bpy.data.cameras.new(name)
+    cam_obj = bpy.data.objects.new(name, cam_data)
+    bpy.context.scene.collection.objects.link(cam_obj)
+
+    # Set camera position along z-axis
+    cam_obj.location = loc
+    
+    # Point camera at origin
+    rot_quat = alignment_quaternion(('Z', direction[0]), ('Y', direction[1]))
+    cam_obj.rotation_euler = rot_quat.to_euler()
+
+    # Set camera properties
+    cam_data.lens = focal_length  # Long focal length
+    cam_data.clip_start = clip_start
+    cam_data.clip_end = clip_end
+
+
+    # Make this the active camera
+    bpy.context.scene.camera = cam_obj
+    
+    return cam_obj
 
 
 
