@@ -463,7 +463,6 @@ def animate_looparray_extrusion(
         for (t_lo, prev_loop), (t_hi, next_loop) in zip(
                 list(loop_traj.items())[:-1],
                 list(loop_traj.items())[1:]):
-            print(f'Animating loop from {prev_loop} to {next_loop}, final {final_loop} at {t_lo} to {t_hi}')
 
             rel_init_loop_idxs = (prev_loop[0] - next_loop[0], prev_loop[1] - next_loop[0])
 
@@ -478,7 +477,7 @@ def animate_looparray_extrusion(
                 full_loop_keyframe_freq=full_loop_keyframe_freq
                 )
             
-            
+
             delta_left = (prev_loop[0] - next_loop[0]) * Vector((step, 0, 0))
             delta_right = (prev_loop[1] - next_loop[1]) * Vector((step, 0, 0))
 
