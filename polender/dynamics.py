@@ -2,12 +2,18 @@ import bpy
 from mathutils import Vector
 
 
-def animate_linear_shift(objects, shift_vector, time_span):
+def animate_linear_shift(
+        objects, 
+        shift_vector, 
+        time_span, 
+        shift_existing_keyframes=True,
+        extend=False):
     """
     Animate objects shifting their positions over time.
     """
     t_lo, t_hi = time_span
     shift_vector = Vector(shift_vector)
+    print(f'Animating shift of {shift_vector} from {t_lo} to {t_hi}, \n objects = {objects}')
     
     for obj in objects:
         # Record start position and insert keyframe
@@ -18,6 +24,9 @@ def animate_linear_shift(objects, shift_vector, time_span):
         bpy.context.scene.frame_set(int(t_hi))
         obj.location += shift_vector
         obj.keyframe_insert(data_path="location", frame=t_hi)
+
+        if not shift_existing_keyframes:
+            continue
         
         # If object has keyframes between start and end, adjust them
         if obj.animation_data and obj.animation_data.action:
@@ -27,7 +36,7 @@ def animate_linear_shift(objects, shift_vector, time_span):
                         if t_lo < kp.co[0] < t_hi:
                             t = (kp.co[0] - t_lo) / (t_hi - t_lo)
                             kp.co[1] += shift_vector[fc.array_index] * t
-                        elif kp.co[0] > t_hi:
+                        elif extend and (kp.co[0] > t_hi):
                             kp.co[1] += shift_vector[fc.array_index]
                     fc.update()
 
