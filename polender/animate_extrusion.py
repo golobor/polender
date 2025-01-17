@@ -7,7 +7,7 @@ import functools
 
 from mathutils import Vector
 
-from .dynamics import animate_linear_shift
+from .dynamics import animate_linear_shift, get_obj_loc
 
 
 def make_hooked_chain(
@@ -224,7 +224,7 @@ def _animate_extrusion_no_tails(
         stem_length=2,
         root_loc = None,
         init_loop_idxs = None,
-        full_loop_keyframe_freq = None,
+        n_intermediate_keyframes = 0,
 ):
 
     if init_loop_idxs is None:
@@ -241,12 +241,8 @@ def _animate_extrusion_no_tails(
     t_lo, t_hi = time_span
     frames_per_hook = (t_hi - t_lo) / n_steps
 
-    full_loop_steps = (
-        np.asarray([])
-        if full_loop_keyframe_freq is None
-        else np.arange(0, n_steps-1, full_loop_keyframe_freq, dtype=int)
-        )
-    full_loop_steps = np.r_[full_loop_steps, n_steps-1].astype(int)
+    full_loop_steps = np.unique(
+        np.linspace(0, n_steps-1, int(n_intermediate_keyframes)+2, dtype=int)[1:])
 
     for i in range(n_steps):
         t = t_lo + i * frames_per_hook
@@ -290,7 +286,7 @@ def animate_looparray_extrusion(
     loops_traj,
     bridge_width = 2.5,
     step = 4,
-    full_loop_keyframe_freq = None,
+    n_intermediate_keyframes = None,
     ):
 
     if isinstance(loops_traj, dict):
@@ -318,12 +314,20 @@ def animate_looparray_extrusion(
                 stem_length=2,
                 root_loc = None,
                 init_loop_idxs = rel_init_loop_idxs,
-                full_loop_keyframe_freq=full_loop_keyframe_freq
+                n_intermediate_keyframes=n_intermediate_keyframes
                 )
             
 
-            delta_left = (prev_loop[0] - next_loop[0]) * Vector((step, 0, 0))
-            delta_right = (prev_loop[1] - next_loop[1]) * Vector((step, 0, 0))
+            delta_left = (
+                get_obj_loc(hooks[next_loop[0]], t_hi) 
+                - get_obj_loc(hooks[next_loop[0]], t_lo) )
+            
+            delta_right = (
+                get_obj_loc(hooks[next_loop[1]-1], t_hi) 
+                - get_obj_loc(hooks[next_loop[1]-1], t_lo) )
+
+            # delta_left = (prev_loop[0] - next_loop[0]) * Vector((step, 0, 0))
+            # delta_right = (prev_loop[1] - next_loop[1]) * Vector((step, 0, 0))
 
 
             linear_shifts.append(

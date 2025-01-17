@@ -2,6 +2,21 @@ import bpy
 from mathutils import Vector
 
 
+def get_obj_loc(obj, frame):
+    # Store current frame
+    original_frame = bpy.context.scene.frame_current
+    
+    # Set frame where we want to evaluate
+    bpy.context.scene.frame_set(frame)
+    
+    obj_loc = obj.location.copy()  # Local space position
+    
+    # Restore original frame
+    bpy.context.scene.frame_set(original_frame)
+    
+    return obj_loc  # or local_pos
+
+
 def animate_linear_shift(
         objects, 
         shift_vector, 
