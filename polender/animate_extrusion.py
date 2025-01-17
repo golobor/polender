@@ -272,162 +272,6 @@ def _animate_extrusion_no_tails(
                 )
 
 
-
-# def _animate_extrusion_no_tails(
-#     hooks_loop,
-#     time_span = (20, 80),
-#     loop_base_width = 2.5,
-#     step = 4):
-
-#     mid_loop_idx = len(hooks_loop) // 2
-
-#     mid_loop_loc = ( hooks_loop[mid_loop_idx].location 
-#                    + hooks_loop[mid_loop_idx+1].location) / 2
-                   
-#     left_anchor_loc =  mid_loop_loc + Vector((- loop_base_width / 2, 0, 0))
-#     right_anchor_loc = mid_loop_loc + Vector((  loop_base_width / 2, 0, 0))
-
-    
-#     _animate_extrusion_threading(
-#         hooks_loop[0:mid_loop_idx+1][::-1],
-#         time_span,
-#         left_anchor_loc,
-#         left_anchor_loc + Vector((0, step, 0)),
-#     )
-
-#     _animate_extrusion_threading(
-#         hooks_loop[mid_loop_idx+1:],
-#         time_span,
-#         right_anchor_loc,
-#         right_anchor_loc + Vector((0, step, 0)),
-#     )
-    
-#     _animate_loop_final_conformation(
-#         hooks_loop,
-#         time_span[1],
-#         step,
-#         mid_loop_loc + Vector((0, step, 0)),
-#         skip_stem=True
-#     )
-
-#     return left_anchor_loc, right_anchor_loc
-
-
-def animate_loop_extrusion(
-    hooks,
-    loop_span = (30, 60),
-    time_span = (20, 80),
-    step = 4,
-    bridge_width = 2.5,
-    init_loop_idxs = None,
-    n_full_loop_keyframes = None,
-    ):
-
-    rel_init_loop_idxs = (
-        None 
-        if init_loop_idxs is None 
-        else (init_loop_idxs[0] - loop_span[0], init_loop_idxs[1] - loop_span[0])
-        )
-    
-    assert (init_loop_idxs[0] > 0)
-    assert (0 < init_loop_idxs[1] < len(hooks))
-
-
-    _animate_extrusion_no_tails(
-            hooks[slice(*loop_span)],        
-            time_span=time_span,
-            step=step,
-            bridge_width=bridge_width,
-            stem_length=2,
-            root_loc = None,
-            init_loop_idxs = rel_init_loop_idxs,
-            n_full_loop_keyframes=n_full_loop_keyframes
-    )
-
-    bpy.context.scene.frame_set(int(time_span[0]))
-    left_anchor_init_loc = hooks[loop_span[0]].location.copy()
-    right_anchor_init_loc = hooks[loop_span[1]-1].location.copy()
-
-    bpy.context.scene.frame_set(int(time_span[1]))
-    left_anchor_final_loc = hooks[loop_span[0]].location.copy()
-    right_anchor_final_loc = hooks[loop_span[1]-1].location.copy()
-
-    left_delta = left_anchor_final_loc - left_anchor_init_loc
-    right_delta = right_anchor_final_loc - right_anchor_init_loc
-
-    animate_linear_shift(
-        hooks[:loop_span[0]], 
-        left_delta,
-        time_span)
-        
-    bpy.context.scene.frame_set(int(time_span[0]))
-    animate_linear_shift(
-        hooks[loop_span[1]:], 
-        right_delta,
-        time_span)
-    
-
-# def animate_looparray_extrusion(
-#     hooks,
-#     loop_traj,
-#     bridge_width = 2.5,
-#     step = 4,
-#     n_full_loop_keyframes = None,
-
-#     ):
-
-
-#     # Get all empties with the given prefix, sorted by name
-#     deltas = []
-
-#     loop_traj = sorted(loop_traj, key=lambda x: x[2][0])
-
-#     for init_loop, final_loop, time_span in loop_traj:
-#         rel_init_loop_idxs = (
-#             None 
-#             if init_loop is None 
-#             else (init_loop[0] - final_loop[0], init_loop[1] - final_loop[0])
-#         )
-
-#         _animate_extrusion_no_tails(
-#             hooks[slice(*final_loop)],
-#             time_span = time_span,
-#             step=step,
-#             bridge_width=bridge_width,
-#             stem_length=2,
-#             root_loc = None,
-#             init_loop_idxs = rel_init_loop_idxs,
-#             n_full_loop_keyframes=n_full_loop_keyframes
-#             )
-        
-#         bpy.context.scene.frame_set(int(time_span[0]))
-#         left_anchor_init_loc = hooks[final_loop[0]].location.copy()
-#         right_anchor_init_loc = hooks[final_loop[1]-1].location.copy()
-
-#         bpy.context.scene.frame_set(int(time_span[1]))
-#         left_anchor_final_loc = hooks[final_loop[0]].location.copy()
-#         right_anchor_final_loc = hooks[final_loop[1]-1].location.copy()
-
-#         deltas.append(
-#             (left_anchor_final_loc - left_anchor_init_loc, 
-#              right_anchor_final_loc - right_anchor_init_loc),
-#         )
-        
-        
-#     for (init_loop, final_loop, time_span), (left_delta, right_delta) in zip(
-#             loop_traj, deltas):
-
-#         animate_linear_shift(
-#             hooks[:final_loop[0]], 
-#             left_delta,
-#             time_span)
-            
-#         animate_linear_shift(
-#             hooks[final_loop[1]:], 
-#             right_delta,
-#             time_span)
-
-
 def normalize_loop_traj(loop_traj):
     if not isinstance(loop_traj, dict):
         raise ValueError("loop_traj must be a dictionary {time: (start_loop, end_loop)}")
@@ -581,3 +425,156 @@ def animate_looparray_extrusion(
 #         skip_stem=True
 #     )
 
+# def _animate_extrusion_no_tails(
+#     hooks_loop,
+#     time_span = (20, 80),
+#     loop_base_width = 2.5,
+#     step = 4):
+
+#     mid_loop_idx = len(hooks_loop) // 2
+
+#     mid_loop_loc = ( hooks_loop[mid_loop_idx].location 
+#                    + hooks_loop[mid_loop_idx+1].location) / 2
+                   
+#     left_anchor_loc =  mid_loop_loc + Vector((- loop_base_width / 2, 0, 0))
+#     right_anchor_loc = mid_loop_loc + Vector((  loop_base_width / 2, 0, 0))
+
+    
+#     _animate_extrusion_threading(
+#         hooks_loop[0:mid_loop_idx+1][::-1],
+#         time_span,
+#         left_anchor_loc,
+#         left_anchor_loc + Vector((0, step, 0)),
+#     )
+
+#     _animate_extrusion_threading(
+#         hooks_loop[mid_loop_idx+1:],
+#         time_span,
+#         right_anchor_loc,
+#         right_anchor_loc + Vector((0, step, 0)),
+#     )
+    
+#     _animate_loop_final_conformation(
+#         hooks_loop,
+#         time_span[1],
+#         step,
+#         mid_loop_loc + Vector((0, step, 0)),
+#         skip_stem=True
+#     )
+
+#     return left_anchor_loc, right_anchor_loc
+
+
+# def animate_loop_extrusion(
+#     hooks,
+#     loop_span = (30, 60),
+#     time_span = (20, 80),
+#     step = 4,
+#     bridge_width = 2.5,
+#     init_loop_idxs = None,
+#     n_full_loop_keyframes = None,
+#     ):
+
+#     rel_init_loop_idxs = (
+#         None 
+#         if init_loop_idxs is None 
+#         else (init_loop_idxs[0] - loop_span[0], init_loop_idxs[1] - loop_span[0])
+#         )
+    
+#     assert (init_loop_idxs[0] > 0)
+#     assert (0 < init_loop_idxs[1] < len(hooks))
+
+
+#     _animate_extrusion_no_tails(
+#             hooks[slice(*loop_span)],        
+#             time_span=time_span,
+#             step=step,
+#             bridge_width=bridge_width,
+#             stem_length=2,
+#             root_loc = None,
+#             init_loop_idxs = rel_init_loop_idxs,
+#             n_full_loop_keyframes=n_full_loop_keyframes
+#     )
+
+#     bpy.context.scene.frame_set(int(time_span[0]))
+#     left_anchor_init_loc = hooks[loop_span[0]].location.copy()
+#     right_anchor_init_loc = hooks[loop_span[1]-1].location.copy()
+
+#     bpy.context.scene.frame_set(int(time_span[1]))
+#     left_anchor_final_loc = hooks[loop_span[0]].location.copy()
+#     right_anchor_final_loc = hooks[loop_span[1]-1].location.copy()
+
+#     left_delta = left_anchor_final_loc - left_anchor_init_loc
+#     right_delta = right_anchor_final_loc - right_anchor_init_loc
+
+#     animate_linear_shift(
+#         hooks[:loop_span[0]], 
+#         left_delta,
+#         time_span)
+        
+#     bpy.context.scene.frame_set(int(time_span[0]))
+#     animate_linear_shift(
+#         hooks[loop_span[1]:], 
+#         right_delta,
+#         time_span)
+    
+
+# def animate_looparray_extrusion(
+#     hooks,
+#     loop_traj,
+#     bridge_width = 2.5,
+#     step = 4,
+#     n_full_loop_keyframes = None,
+
+#     ):
+
+
+#     # Get all empties with the given prefix, sorted by name
+#     deltas = []
+
+#     loop_traj = sorted(loop_traj, key=lambda x: x[2][0])
+
+#     for init_loop, final_loop, time_span in loop_traj:
+#         rel_init_loop_idxs = (
+#             None 
+#             if init_loop is None 
+#             else (init_loop[0] - final_loop[0], init_loop[1] - final_loop[0])
+#         )
+
+#         _animate_extrusion_no_tails(
+#             hooks[slice(*final_loop)],
+#             time_span = time_span,
+#             step=step,
+#             bridge_width=bridge_width,
+#             stem_length=2,
+#             root_loc = None,
+#             init_loop_idxs = rel_init_loop_idxs,
+#             n_full_loop_keyframes=n_full_loop_keyframes
+#             )
+        
+#         bpy.context.scene.frame_set(int(time_span[0]))
+#         left_anchor_init_loc = hooks[final_loop[0]].location.copy()
+#         right_anchor_init_loc = hooks[final_loop[1]-1].location.copy()
+
+#         bpy.context.scene.frame_set(int(time_span[1]))
+#         left_anchor_final_loc = hooks[final_loop[0]].location.copy()
+#         right_anchor_final_loc = hooks[final_loop[1]-1].location.copy()
+
+#         deltas.append(
+#             (left_anchor_final_loc - left_anchor_init_loc, 
+#              right_anchor_final_loc - right_anchor_init_loc),
+#         )
+        
+        
+#     for (init_loop, final_loop, time_span), (left_delta, right_delta) in zip(
+#             loop_traj, deltas):
+
+#         animate_linear_shift(
+#             hooks[:final_loop[0]], 
+#             left_delta,
+#             time_span)
+            
+#         animate_linear_shift(
+#             hooks[final_loop[1]:], 
+#             right_delta,
+#             time_span)

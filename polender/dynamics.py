@@ -13,7 +13,6 @@ def animate_linear_shift(
     """
     t_lo, t_hi = time_span
     shift_vector = Vector(shift_vector)
-    print(f'Animating shift of {shift_vector} from {t_lo} to {t_hi}, \n objects = {objects}')
     
     for obj in objects:
         # Record start position and insert keyframe
