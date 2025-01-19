@@ -152,18 +152,20 @@ def _arrange_hooks_into_loop(
         root_loc, 
         bridge_width,
         stem_length=2, 
-        stem_only=False):
+        stem_only=False,
+        vertical_orientation=1):
     
     l_loop = len(hooks_loop)
+    vo = vertical_orientation
 
     real_stem_length = min(stem_length, int(round(l_loop / 2)))
     # arange hooks of the stem
     for i in range(real_stem_length):
         hook = hooks_loop[i]
-        hook.location = root_loc + Vector((-bridge_width/2, i * step, 0))
+        hook.location = root_loc + Vector((-bridge_width/2, i * step * vo, 0))
 
         hook = hooks_loop[-i-1]
-        hook.location = root_loc + Vector((bridge_width/2, i * step, 0))
+        hook.location = root_loc + Vector((bridge_width/2, i * step * vo, 0))
 
 
 
@@ -179,13 +181,13 @@ def _arrange_hooks_into_loop(
 
     angle_per_hook = loop_total_angle / (n_hooks_circle + 1 )
 
-    center_circle = root_loc + Vector((0, step * (stem_length - 1), 0)) + Vector((0, r_circle, 0))
+    center_circle = root_loc + Vector((0, step * (stem_length - 1) * vo, 0)) + Vector((0, r_circle * vo, 0))
 
     for i, hook in enumerate(hooks_loop[stem_length:-stem_length]):
         hook_angle = 1.5 * math.pi - angle_per_hook * (i + 1) - stem_angle
         hook_position = center_circle.copy()
         hook_position[0] += r_circle * math.cos(hook_angle)
-        hook_position[1] += r_circle * math.sin(hook_angle)
+        hook_position[1] += (r_circle * math.sin(hook_angle)) * vo
         hook.location = hook_position.copy()
         
 
@@ -196,7 +198,8 @@ def keyframe_hook_loop(
     root_loc, 
     bridge_width,
     stem_length=2, 
-    stem_only=False
+    stem_only=False,
+    vertical_orientation=1
     ):
 
     bpy.context.scene.frame_set(int(t))
@@ -207,7 +210,8 @@ def keyframe_hook_loop(
         root_loc,
         bridge_width,
         stem_length,
-        stem_only)
+        stem_only,
+        vertical_orientation=vertical_orientation)
     
     hooks_to_keyframe = hooks_loop[:stem_length] + hooks_loop[-stem_length:] if stem_only else hooks_loop
 
@@ -225,6 +229,7 @@ def _animate_extrusion_no_tails(
         root_loc = None,
         init_loop_idxs = None,
         n_intermediate_keyframes = 0,
+        vertical_orientation=1
 ):
 
     if init_loop_idxs is None:
@@ -265,6 +270,7 @@ def _animate_extrusion_no_tails(
                 bridge_width,
                 stem_length=stem_length, 
                 stem_only=not keyframe_full_loop,
+                vertical_orientation=vertical_orientation
                 )
 
 
@@ -284,6 +290,7 @@ def normalize_loop_traj(loop_traj):
 def animate_looparray_extrusion(
     hooks,
     loops_traj,
+    vertical_orientations=None,
     bridge_width = 2.5,
     step = 4,
     n_intermediate_keyframes = None,
@@ -295,8 +302,10 @@ def animate_looparray_extrusion(
     loops_traj = [normalize_loop_traj(lt) for lt in loops_traj]
 
     linear_shifts = []
+    if vertical_orientations is None:
+        vertical_orientations = [1] * len(loops_traj)
 
-    for loop_traj in loops_traj:
+    for loop_traj, vo in zip(loops_traj, vertical_orientations):
         last_t = max(loop_traj.keys())
         final_loop = loop_traj[last_t]
 
@@ -314,7 +323,8 @@ def animate_looparray_extrusion(
                 stem_length=2,
                 root_loc = None,
                 init_loop_idxs = rel_init_loop_idxs,
-                n_intermediate_keyframes=n_intermediate_keyframes
+                n_intermediate_keyframes=n_intermediate_keyframes,
+                vertical_orientation=vo
                 )
             
 
