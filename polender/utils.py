@@ -52,9 +52,10 @@ def matches_template(template, string, pattern_type='any'):
 def discover_objects(
         obj_name_template,
         obj_type='EMPTY',
+        root=bpy.data,
 ):
     objs = {int(idx):obj
-            for obj in bpy.data.objects 
+            for obj in root.objects
             if (idx:=matches_template(obj_name_template, obj.name)) is not None
             and ((obj_type is None) or (obj.type == obj_type))
             }      

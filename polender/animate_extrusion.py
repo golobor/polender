@@ -105,6 +105,109 @@ def change_hook_strength(hooked_objs, new_strength=1.0):
                 mod.strength = new_strength # Change this value (0.0 to 1.0)
 
 
+
+def add_distance_constraint(
+        obj1,
+        obj2,
+        distance=8,
+        limit_mode='LIMITDIST_INSIDE', # or 'LIMITDIST_INSIDE' or 'LIMITDIST_OUTSIDE' or 'LIMITDIST_ONSURFACE'
+        influence=0.5):
+
+    # Create distance constraint
+    constraint = obj1.constraints.new(type='LIMIT_DISTANCE')
+    constraint.target = obj2
+    constraint.distance = distance
+    constraint.limit_mode = limit_mode
+    constraint.use_transform_limit = True
+    constraint.influence = influence
+    
+    return constraint
+
+
+
+def change_constraints(
+        objs, 
+        constraint_type='LIMIT_DISTANCE', 
+        cond_f=None,
+        **kwargs):
+    # For all objects in scene
+    for obj in objs:
+    # Check modifiers
+        for constraint in obj.constraints:
+            # If modifier is a hook
+            if ((constraint.type == constraint_type)
+                and    
+                (cond_f is None or cond_f(constraint))
+                 ):
+                print(f'object {obj}, modifier {constraint} changed: {kwargs}')
+                for k,v in kwargs.items():
+                    setattr(constraint, k, v)
+
+
+
+def disable_constraints(
+        objs, 
+        cond_f=None,
+        mode='disable'):
+    # For all objects in scene
+    for obj in objs:
+    # Check modifiers
+        for constraint in obj.constraints:
+            # If modifier is a hook
+            if (cond_f is None or cond_f(constraint)):
+                if mode == 'disable':
+                    print(f'disabling object {obj}, modifier {constraint}')
+                    constraint.enabled = False
+                elif mode == 'mute':
+                    print(f'muting object {obj}, modifier {constraint}')
+                    constraint.mute = True
+
+
+def enable_constraints(
+        objs, 
+        cond_f=None,
+        mode='disable'):
+    # For all objects in scene
+    for obj in objs:
+    # Check modifiers
+        for constraint in obj.constraints:
+            # If modifier is a hook
+            if (cond_f is None or cond_f(constraint)):
+                if mode == 'disable':
+                    print(f'disabling object {obj}, modifier {constraint}')
+                    constraint.enabled = True
+                elif mode == 'mute':
+                    print(f'muting object {obj}, modifier {constraint}')
+                    constraint.mute = False
+
+
+def chain_hooks(
+        hooks, 
+        max_dist=8,
+        min_dist=None,
+        influence=0.5):
+
+    # or 'LIMITDIST_INSIDE' or 'LIMITDIST_OUTSIDE' or 'LIMITDIST_ONSURFACE'
+    # Add constraints between consecutive pairs
+
+    for i in range(len(hooks)-1):
+        add_distance_constraint(
+            hooks[i], 
+            hooks[i+1],
+            distance=max_dist, 
+            limit_mode='LIMITDIST_ONSURFACE' if max_dist == min_dist else 'LIMITDIST_INSIDE', 
+            influence=influence)
+        
+    if min_dist is not None and min_dist != max_dist:
+        for i in range(len(hooks)-1):
+            add_distance_constraint(
+                hooks[i], 
+                hooks[i+1],
+                distance=min_dist, 
+                limit_mode='LIMITDIST_OUTSIDE', 
+                influence=influence)
+
+
 def add_fiber_softbody(obj):
     # Add soft body modifier first
     soft_body = obj.modifiers.new(name="Softbody", type='SOFT_BODY')
@@ -129,6 +232,13 @@ def add_fiber_softbody(obj):
     soft_body.point_cache.frame_end = 1000
 
 
+def set_skin_radius(obj, skin_radius=0.5):
+    skin_data = obj.data.skin_vertices[0].data
+    for skin_vert in skin_data:
+        skin_vert.radius = (skin_radius, skin_radius)  # (X, Y) radius for each vertex
+
+
+
 def add_smooth_skin(obj, skin_radius=0.5):
     bpy.context.view_layer.objects.active = obj
     obj.select_set(True)
@@ -141,9 +251,10 @@ def add_smooth_skin(obj, skin_radius=0.5):
     # Add Skin modifier
     skin_mod = obj.modifiers.new(name="Skin", type='SKIN')
     
-    skin_data = obj.data.skin_vertices[0].data
-    for skin_vert in skin_data:
-        skin_vert.radius = (skin_radius, skin_radius)  # (X, Y) radius for each vertex
+    # Set skin radius
+    set_skin_radius(obj, skin_radius=skin_radius)
+
+
 
 
 def _arrange_hooks_into_loop(
@@ -152,44 +263,46 @@ def _arrange_hooks_into_loop(
         root_loc, 
         bridge_width,
         stem_length=2, 
-        stem_only=False,
+        arrange_root=True,
+        arrange_stem=True,
+        arrange_loop=False,
         vertical_orientation=1):
     
     l_loop = len(hooks_loop)
     vo = vertical_orientation
 
     real_stem_length = min(stem_length, int(round(l_loop / 2)))
-    # arange hooks of the stem
     for i in range(real_stem_length):
+        if i == 0 and not arrange_root:
+            continue
+        if i > 0 and not arrange_stem:
+            continue
         hook = hooks_loop[i]
         hook.location = root_loc + Vector((-bridge_width/2, i * step * vo, 0))
 
         hook = hooks_loop[-i-1]
         hook.location = root_loc + Vector((bridge_width/2, i * step * vo, 0))
 
-
-
-    if stem_only or l_loop <= 2 * stem_length:
-        return
-
-    n_hooks_circle = l_loop - 2 * stem_length 
-    l_circle = n_hooks_circle * step
-    r_circle = l_circle / math.pi / 2
-
-    stem_angle = np.arcsin(bridge_width / 2 / r_circle)
-    loop_total_angle = 2 * math.pi - stem_angle * 2
-
-    angle_per_hook = loop_total_angle / (n_hooks_circle + 1 )
-
-    center_circle = root_loc + Vector((0, step * (stem_length - 1) * vo, 0)) + Vector((0, r_circle * vo, 0))
-
-    for i, hook in enumerate(hooks_loop[stem_length:-stem_length]):
-        hook_angle = 1.5 * math.pi - angle_per_hook * (i + 1) - stem_angle
-        hook_position = center_circle.copy()
-        hook_position[0] += r_circle * math.cos(hook_angle)
-        hook_position[1] += (r_circle * math.sin(hook_angle)) * vo
-        hook.location = hook_position.copy()
+    if arrange_loop and l_loop > 2 * stem_length:
         
+        n_hooks_circle = l_loop - 2 * stem_length 
+        l_circle = n_hooks_circle * step
+        r_circle = l_circle / math.pi / 2
+
+        stem_angle = np.arcsin(bridge_width / 2 / r_circle)
+        loop_total_angle = 2 * math.pi - stem_angle * 2
+
+        angle_per_hook = loop_total_angle / (n_hooks_circle + 1 )
+
+        center_circle = root_loc + Vector((0, step * (stem_length - 1) * vo, 0)) + Vector((0, r_circle * vo, 0))
+
+        for i, hook in enumerate(hooks_loop[stem_length:-stem_length]):
+            hook_angle = 1.5 * math.pi - angle_per_hook * (i + 1) - stem_angle
+            hook_position = center_circle.copy()
+            hook_position[0] += r_circle * math.cos(hook_angle)
+            hook_position[1] += (r_circle * math.sin(hook_angle)) * vo
+            hook.location = hook_position.copy()
+            
 
 def keyframe_hook_loop(
     t,
@@ -197,9 +310,9 @@ def keyframe_hook_loop(
     step,
     root_loc, 
     bridge_width,
-    stem_length=2, 
-    stem_only=False,
-    vertical_orientation=1
+    stem_length=2,
+    no_keyframe_elements=[], 
+    vertical_orientation=1,
     ):
 
     bpy.context.scene.frame_set(int(t))
@@ -210,16 +323,96 @@ def keyframe_hook_loop(
         root_loc,
         bridge_width,
         stem_length,
-        stem_only,
+        arrange_root=True,
+        arrange_stem=True,
+        arrange_loop=True,
         vertical_orientation=vertical_orientation)
     
-    hooks_to_keyframe = hooks_loop[:stem_length] + hooks_loop[-stem_length:] if stem_only else hooks_loop
+    N = len(hooks_loop)
+    hook_idxs_to_skip = set()
+
+    if 'root' in no_keyframe_elements:
+        hook_idxs_to_skip.update({0, N-1})
+    if 'root_left' in no_keyframe_elements:
+        hook_idxs_to_skip.update({0})
+    if 'root_right' in no_keyframe_elements:
+        hook_idxs_to_skip.update({N-1})
+    if 'stem' in no_keyframe_elements:
+        hook_idxs_to_skip.update(set(range(1, stem_length)))
+        hook_idxs_to_skip.update(set(range(N-stem_length, N-1)))
+    if 'stem_left' in no_keyframe_elements:
+        hook_idxs_to_skip.update(set(range(1, stem_length)))
+    if 'stem_right' in no_keyframe_elements:
+        hook_idxs_to_skip.update(set(range(N-stem_length, N-1)))
+    if 'loop' in no_keyframe_elements:
+        hook_idxs_to_skip.update(set(range(stem_length, N-stem_length)))
+    
+    hooks_to_keyframe = [hook for i, hook in enumerate(hooks_loop) if i not in hook_idxs_to_skip]
 
     for hook in hooks_to_keyframe:    
         hook.keyframe_insert(data_path="location", frame=int(t))
 
 
+def _schedule_extrusion(
+        final_loop_len,
+        init_loop_idxs,
+        time_span,
+):
+    
+    if init_loop_idxs is None:
+        init_loop_idxs = (final_loop_len // 2, final_loop_len // 2 + 1)
 
+    n_steps = max(init_loop_idxs[0], final_loop_len - init_loop_idxs[1]) + 1
+
+    ts = np.linspace(time_span[0], time_span[1], n_steps, dtype=int)
+
+    loop_traj = {}
+
+    for i in range(n_steps):
+        loop_traj[ts[i]] =  (
+                max(0, init_loop_idxs[0] - i),
+                min(final_loop_len, init_loop_idxs[1] + i))
+        
+    return loop_traj
+
+
+def animate_le_constraints(
+        hooks,
+        loop_traj,
+        bridge_width = 2.5,
+        influence=0.5
+):
+    
+    ts = np.array(list(loop_traj.keys()))
+
+    for i in range(1, len(ts)):
+        prev_t = ts[i-1] if i > 0 else None
+        t = ts[i]
+        next_t = ts[i+1] if i < len(ts) - 1 else None
+
+        cur_loop = loop_traj[t]
+
+        constraint = add_distance_constraint(
+            hooks[cur_loop[0]],
+            hooks[cur_loop[1]-1],
+            distance=bridge_width,
+            influence=influence
+        )
+
+        bpy.context.scene.frame_set(t)
+        constraint.keyframe_insert(data_path="influence", frame=t)
+        
+        if prev_t is not None:
+            bpy.context.scene.frame_set(prev_t)
+            constraint.influence = 0.0
+            constraint.keyframe_insert(data_path="influence", frame=prev_t)
+
+        if next_t is not None:
+            bpy.context.scene.frame_set(next_t)
+            constraint.influence = 0.0
+            constraint.keyframe_insert(data_path="influence", frame=next_t)
+
+    
 def _animate_extrusion_no_tails(
         hooks,        
         time_span,
@@ -228,40 +421,54 @@ def _animate_extrusion_no_tails(
         stem_length=2,
         root_loc = None,
         init_loop_idxs = None,
+        animate_stem=True, # unused
         n_intermediate_keyframes = 0,
-        vertical_orientation=1
+        vertical_orientation=1,
+        add_constraints_with_influence=None
 ):
 
-    if init_loop_idxs is None:
-        init_loop_idxs = (len(hooks) // 2, len(hooks) // 2 + 1)
-
     bpy.context.scene.frame_set(int(time_span[0]))
+
+    loop_traj = _schedule_extrusion(
+        len(hooks),
+        init_loop_idxs,
+        time_span,
+    )
+
+    if add_constraints_with_influence:
+        animate_le_constraints(
+            hooks,
+            loop_traj,
+            bridge_width = bridge_width,
+            influence=add_constraints_with_influence
+        )
     
     if root_loc is None:
         root_loc = ( hooks[init_loop_idxs[0]].location.copy() 
                    + hooks[init_loop_idxs[1]-1].location.copy()) / 2
-
-    n_steps = max(init_loop_idxs[0], len(hooks) - init_loop_idxs[1]) + 1
-
-    t_lo, t_hi = time_span
-    frames_per_hook = (t_hi - t_lo) / n_steps
+        
+    ts = np.array(list(loop_traj.keys()))
 
     full_loop_steps = np.unique(
-        np.linspace(0, n_steps-1, int(n_intermediate_keyframes)+2, dtype=int)[1:])
+        np.linspace(0, len(ts)-1, int(n_intermediate_keyframes)+2, dtype=int)[1:])
 
-    for i in range(n_steps):
-        t = t_lo + i * frames_per_hook
+    for i, (t, loop_span) in enumerate(loop_traj.items()):
         if i == 0:
-            bpy.context.scene.frame_set(int(t_lo))
+            bpy.context.scene.frame_set(int(t))
             for hook in hooks:
-                hook.keyframe_insert(data_path="location", frame=int(t_lo))
+                hook.keyframe_insert(data_path="location", frame=int(t))
         else:
-            hooks_to_keyframe_span = (
-                max(0, init_loop_idxs[0] - i),
-                min(len(hooks), init_loop_idxs[1] + i))
 
-            hooks_to_keyframe = hooks[slice(*hooks_to_keyframe_span)]
-            keyframe_full_loop = i in full_loop_steps
+            hooks_to_keyframe = hooks[slice(*loop_span)]
+            no_keyframe_elements = [] 
+            if i not in full_loop_steps:
+                no_keyframe_elements += ['loop']
+            prev_loop_span = loop_traj[ts[i-1]]
+            if loop_span[0] == prev_loop_span[0]:
+                no_keyframe_elements += ['root_left', 'stem_left']
+            if loop_span[1] == prev_loop_span[1]:
+                no_keyframe_elements += ['root_right', 'stem_right']
+                
             keyframe_hook_loop(
                 t,
                 hooks_to_keyframe, 
@@ -269,7 +476,7 @@ def _animate_extrusion_no_tails(
                 root_loc, 
                 bridge_width,
                 stem_length=stem_length, 
-                stem_only=not keyframe_full_loop,
+                no_keyframe_elements=no_keyframe_elements,
                 vertical_orientation=vertical_orientation
                 )
 
@@ -294,6 +501,8 @@ def animate_looparray_extrusion(
     bridge_width = 2.5,
     step = 4,
     n_intermediate_keyframes = None,
+    add_constraints_with_influence=None,
+    shift_backbone=True,
     ):
 
     if isinstance(loops_traj, dict):
@@ -324,7 +533,8 @@ def animate_looparray_extrusion(
                 root_loc = None,
                 init_loop_idxs = rel_init_loop_idxs,
                 n_intermediate_keyframes=n_intermediate_keyframes,
-                vertical_orientation=vo
+                vertical_orientation=vo,
+                add_constraints_with_influence=add_constraints_with_influence
                 )
             
 
@@ -339,6 +549,8 @@ def animate_looparray_extrusion(
             # delta_left = (prev_loop[0] - next_loop[0]) * Vector((step, 0, 0))
             # delta_right = (prev_loop[1] - next_loop[1]) * Vector((step, 0, 0))
 
+            if not shift_backbone:
+                continue
 
             linear_shifts.append(
                 functools.partial(
@@ -385,9 +597,10 @@ def animate_looparray_extrusion(
                 )
             )
             
-               
-    for linear_shift in linear_shifts:
-        linear_shift()
+
+    if shift_backbone:
+        for linear_shift in linear_shifts:
+            linear_shift()
 
 # def animate_resume_extrusion(
 #     hooks,
