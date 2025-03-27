@@ -117,14 +117,28 @@ def smooth_animation(objs):
 
 def add_fcurve_noise(objs, strength=10.0, scale=20.0):
     for obj in objs:
-        # Add noise modifier to each F-curve
-        if obj.animation_data and obj.animation_data.action:
-            for fcurve in obj.animation_data.action.fcurves:
-                noise = fcurve.modifiers.new('NOISE')
-                noise.strength = strength
-                noise.scale = scale
-                noise.phase = hash(obj.name + str(fcurve.array_index)) % 1000  # Random phase per axis per object
-                noise.use_restricted_range = False
+        # Ensure the object has animation data
+        if obj.animation_data is None:
+            obj.animation_data_create()
+        # Ensure an action is assigned
+        if obj.animation_data.action is None:
+            action = bpy.data.actions.new(name=f"{obj.name}_Action")
+            obj.animation_data.action = action
+
+
+        # Make sure location fcurves exist for X, Y, Z.
+        for axis in range(3):
+            found = any(fc.data_path == "location" and fc.array_index == axis 
+                        for fc in obj.animation_data.action.fcurves)
+            if not found:
+                obj.keyframe_insert(data_path="location", frame=1)
+                
+        for fcurve in obj.animation_data.action.fcurves:
+            noise = fcurve.modifiers.new('NOISE')
+            noise.strength = strength
+            noise.scale = scale
+            noise.phase = hash(obj.name + str(fcurve.array_index)) % 1000  # Random phase per axis per object
+            noise.use_restricted_range = False
 
 
 def remove_fcurve_noise(objs):
