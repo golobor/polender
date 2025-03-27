@@ -73,7 +73,6 @@ def make_hooked_chain(
         # Create vertex group
         vg = obj.vertex_groups.new(name=f'hook_{i}_vg'+subobj_suffix)
         
-        # Add exactly 5 vertices starting from start_idx
         vg.add([i], 1.0, 'REPLACE')
         
         # Select vertices for this hook
