@@ -148,3 +148,136 @@ def remove_fcurve_noise(objs):
                 for modifier in fcurve.modifiers:
                     if modifier.type == 'NOISE':
                         fcurve.modifiers.remove(modifier)
+
+
+def animate_curve_point_radius(curve_obj, start_frame=1, end_frame=50, radius=1.0):
+    curve = curve_obj.data
+    spline = curve.splines[0]  # Assuming first spline
+    
+    # Get total points for calculation
+    if spline.type == 'BEZIER':
+        total_points = len(spline.bezier_points)
+        
+        # Calculate the frame spacing between points
+        frame_step = (end_frame - start_frame) / total_points
+        
+        # For each point, set just two keyframes
+        for i, point in enumerate(spline.bezier_points):
+            if i % 10000 == 0:
+                print(f"Animating point {i} of {total_points}")
+            # Calculate the frame when this point should appear
+            appear_frame = start_frame + int(i * frame_step)
+            
+            # Set radius 0 at start frame (hidden)
+            #bpy.context.scene.frame_set(start_frame)
+            point.radius = 0.0
+            point.keyframe_insert("radius", frame=start_frame)
+            
+            # Set radius 1 at appearance frame (visible)
+            #bpy.context.scene.frame_set(appear_frame)
+            point.keyframe_insert("radius", frame=appear_frame-1)
+            point.radius = radius
+            point.keyframe_insert("radius", frame=appear_frame)
+
+
+
+def _create_taper_curve(name):
+    """Create a new taper curve object"""
+    # Remove existing curve/object if present
+    if name in bpy.data.curves:
+        if name in bpy.data.objects:
+            bpy.data.objects.remove(bpy.data.objects[name])
+        bpy.data.curves.remove(bpy.data.curves[name])
+        
+    # Create a new curve and object
+    curve = bpy.data.curves.new(name, 'CURVE')
+    curve.dimensions = '2D'
+    
+    obj = bpy.data.objects.new(name, curve)
+    bpy.context.scene.collection.objects.link(obj)
+    
+    # Hide the taper object
+    obj.hide_viewport = True
+    obj.hide_render = True
+    
+    return curve, obj
+
+def _setup_growth_taper(curve_obj, start_frame, end_frame, step_width=0.02):
+    """Set up a clean growing effect taper curve"""
+    # Create the taper object
+    taper_name = f"{curve_obj.name}_taper"
+    taper_curve, taper_obj = _create_taper_object(taper_name)
+    
+    # Create a spline with 3 points (minimal configuration)
+    spline = taper_curve.splines.new('BEZIER')
+    ps = spline.bezier_points
+    ps.add(3) 
+    
+    # Set all handles to vector type for sharp transitions
+    for point in ps:
+        point.handle_left_type = 'VECTOR'
+        point.handle_right_type = 'VECTOR'
+    
+    # Initial state: completely invisible
+    ps[0].co = (0, 0, 0)
+    ps[1].co = (0, 0, 0)
+    ps[2].co = (0, 0, 0)
+    ps[3].co = (1, 0, 0)
+    
+    # Keyframe initial state
+    for p in ps:
+        p.keyframe_insert("co", frame=start_frame)
+    
+    velocity = (1+step_width) / (end_frame - start_frame)
+
+    ps[0].co = (0, 1, 0)
+    ps[1].co = (0, 1, 0)
+    ps[2].co = (step_width, 0, 0)
+
+    for p in ps:
+        p.keyframe_insert("co", frame=start_frame+max(1,int(step_width/velocity)))
+    
+    ps[1].co = (1 - step_width, 1, 0)
+    ps[2].co = (1, 0, 0)
+
+    for p in ps[1:]:
+        p.keyframe_insert("co", frame=start_frame+int(1.0/velocity))
+
+    ps[1].co = (1, 1, 0)
+    ps[2].co = (1, 1, 0)
+    ps[3].co = (1, 1, 0)
+
+    for p in ps[1:]:
+        p.keyframe_insert("co", frame=end_frame)
+        
+    # Make animation linear
+    if taper_curve.animation_data and taper_curve.animation_data.action:
+        for fcurve in taper_curve.animation_data.action.fcurves:
+            for kf in fcurve.keyframe_points:
+                kf.interpolation = 'LINEAR'
+    
+    # Assign taper to curve
+    curve_obj.data.taper_object = taper_obj
+    
+    return taper_obj
+
+
+
+def animate_curve_growth(curve_obj, start_frame=1, end_frame=50, step_width=0.02, thickness=0.01):
+    """Apply growing animation to a curve using taper"""
+    # Make sure it's a curve
+    if curve_obj.type != 'CURVE':
+        print(f"Object {curve_obj.name} is not a curve, skipping.")
+        return None
+    
+    # Set up curve properties
+    curve_data = curve_obj.data
+    curve_data.use_fill_caps = True
+    curve_data.bevel_depth = thickness  # Set your desired thickness
+    
+    # Create and set up taper
+    taper_obj = _setup_growth_taper(curve_obj, start_frame, end_frame, step_width)
+    
+    print(f"Applied growth animation to {curve_obj.name}")
+    return taper_obj
+
