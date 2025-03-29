@@ -13,8 +13,18 @@ def add_curve(
         name='polymer', 
         resolution=4,
         kind='BEZIER',
-        smooth_bezier=False):
+        smooth_bezier=False,
+        collection=None):
     # create the Curve Datablock
+    if collection:
+        if collection not in bpy.data.collections:
+            new_collection = bpy.data.collections.new(collection)
+            bpy.context.scene.collection.children.link(new_collection)
+        else:
+            new_collection = bpy.data.collections[collection]
+    else:
+        new_collection = bpy.context.collection
+
     curveData = bpy.data.curves.new(name+'_curve', type='CURVE')
     curveData.dimensions = '3D'
     curveData.resolution_u = resolution
@@ -41,17 +51,19 @@ def add_curve(
         raise ValueError('Unknown curve type')
             
     curveOB = bpy.data.objects.new(name+'_obj', curveData)
-
     # attach to scene and validate context
-    bpy.context.scene.collection.objects.link(curveOB)
-    bpy.context.view_layer.objects.active = curveOB
-    curveOB.select_set(True)
 
     curveOB.data.resolution_u     = resolution     # Preview U
     curveOB.data.fill_mode        = 'FULL' # Fill Mode ==> Full
     curveOB.data.bevel_depth      = thickness   # Bevel Depth
     curveOB.data.bevel_resolution = resolution      # Bevel Resolution
     
+    new_collection.objects.link(curveOB)
+
+    # bpy.context.scene.collection.objects.link(curveOB)
+    # bpy.context.view_layer.objects.active = curveOB
+    # curveOB.select_set(True)
+
     if kind == 'BEZIER' and smooth_bezier:
         smooth_bezier_curve(curveOB)    
 
