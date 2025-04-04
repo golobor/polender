@@ -1,1 +1,1 @@
-from . import animate_extrusion, dynamics, geoutils, objects, utils
+from . import animate_extrusion, dynamics, geoutils, modifiers, objects, utils
