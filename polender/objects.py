@@ -166,7 +166,54 @@ def add_torus(
 
 
 
-def add_spheres(positions, radius=0.015, collection=""):
+def add_cylinder(
+    radius=1.0, 
+    depth=2.0, 
+    vertices=32, 
+    location=(0, 0, 0), 
+    rotation=(0, 0, 0), 
+    scale=(1, 1, 1),
+    name="cylinder"
+):
+    """
+    Creates a cylinder in Blender.
+    
+    Parameters:
+        radius (float): Radius of the cylinder
+        depth (float): Height/depth of the cylinder
+        vertices (int): Number of vertices around the circumference
+        location (tuple): (x, y, z) location
+        rotation (tuple): (x, y, z) rotation in radians
+        scale (tuple): (x, y, z) scale
+        name (str): Name of the cylinder object
+        
+    Returns:
+        The created cylinder object
+    """
+    # Create the cylinder mesh
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=vertices,
+        radius=radius,
+        depth=depth,
+        end_fill_type='NGON',
+        calc_uvs=True,
+        enter_editmode=False,
+        align='WORLD',
+        location=location,
+        rotation=rotation,
+        scale=scale
+    )
+    
+    # Get the object that was just created
+    cylinder = bpy.context.active_object
+    cylinder.name = name
+    bpy.ops.object.shade_smooth()
+
+    
+    return cylinder
+
+
+def add_spheres(positions, radius=0.015, names='sphere_{}' , collection=""):
     """
     Creates spheres at given positions with the specified radius and adds them to a new collection.
     
@@ -187,10 +234,23 @@ def add_spheres(positions, radius=0.015, collection=""):
     else:
         new_collection = bpy.context.collection
     
-    for position in positions:
+    if isinstance(names, (list, tuple)):
+        assert len(names) == len(positions), "Number of names must match number of positions"    
+        naming_func = lambda i: names[i]
+    elif hasattr(names, '__call__'):
+        naming_func = names
+    elif isinstance(names, str):
+        naming_func = lambda x: names.format(x) if '{}' in names else names
+    else:
+        raise ValueError('name must be a string, a list of strings, or a callable')
+
+    for i,position in enumerate(positions):
         bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, location=position)
         sphere = bpy.context.active_object
         
+        sphere.name = naming_func(i)
+        sphere.data.shade_smooth()
+
         # Link the sphere to the new collection and unlink from the default collection
         new_collection.objects.link(sphere)
         bpy.context.collection.objects.unlink(sphere)
