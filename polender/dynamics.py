@@ -1,5 +1,51 @@
+import warnings
+
 import bpy
 from mathutils import Vector
+
+
+def clear_animation(objects=None, properties=None, new_values=None):
+    """
+    Clear animation keyframes for specific properties from Blender objects.
+    
+    Args:
+        objects: A single object, list of objects, or None to use selected objects
+        properties: List of property data paths to clear
+        new_values: Dictionary of {property: value} to set after clearing animation.
+                   If None, properties won't be changed
+    """
+    
+    # Handle different input types for objects
+    obj_list = []
+    if objects is None:
+        obj_list = list(bpy.context.selected_objects)
+    elif isinstance(objects, list):
+        obj_list = objects
+    else:
+        obj_list = [objects]
+    
+    # Process each object
+    for obj in obj_list:
+        # Check if the object has animation data
+        if obj.animation_data and obj.animation_data.action:
+            action = obj.animation_data.action
+            
+            # Clear specified properties (or all if None)
+            props_to_clear = properties or [fc.data_path for fc in action.fcurves]
+            
+            for prop in props_to_clear:
+                # Find the fcurve directly by name
+                fcurve = action.fcurves.find(prop)
+                if fcurve:
+                    action.fcurves.remove(fcurve)
+                else:
+                    warnings.warn(f"Property '{prop}' not found in action '{action.name}' for object '{obj.name}'") 
+        
+        # Set new values if provided
+        if new_values:
+            for prop, value in new_values.items():
+                if hasattr(obj, prop):
+                    setattr(obj, prop, value)
 
 
 def get_obj_loc(obj, frame):
@@ -88,17 +134,17 @@ def insert_pause(t, duration):
         obj.keyframe_insert(data_path="location", frame=t + duration)
  
     
-def clear_animation(objs):
-    if objs is None:
-        objs = bpy.context.scene.objects
+# def clear_animation(objs):
+#     if objs is None:
+#         objs = bpy.context.scene.objects
         
-    # Remove animation from all objects
-    for obj in objs:
-        obj.animation_data_clear()
+#     # Remove animation from all objects
+#     for obj in objs:
+#         obj.animation_data_clear()
 
-    # # Optional: also remove unused actions
-    # for action in bpy.data.actions:
-    #     bpy.data.actions.remove(action)
+#     # # Optional: also remove unused actions
+#     # for action in bpy.data.actions:
+#     #     bpy.data.actions.remove(action)
 
 
 
@@ -262,7 +308,6 @@ def _setup_growth_taper(curve_obj, start_frame, end_frame, step_width=0.02):
     return taper_obj
 
 
-
 def animate_curve_growth(curve_obj, start_frame=1, end_frame=50, step_width=0.02, thickness=0.01):
     """Apply growing animation to a curve using taper"""
     # Make sure it's a curve
@@ -281,3 +326,12 @@ def animate_curve_growth(curve_obj, start_frame=1, end_frame=50, step_width=0.02
     print(f"Applied growth animation to {curve_obj.name}")
     return taper_obj
 
+
+
+def hide_obj(obj, t, unhide=False):
+    bpy.context.scene.frame_set(t)
+    obj.hide_viewport = not unhide
+    obj.hide_render = not unhide
+
+    obj.keyframe_insert('hide_viewport', frame=t)
+    obj.keyframe_insert('hide_render', frame=t)

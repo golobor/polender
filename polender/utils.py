@@ -3,22 +3,6 @@ import re
 import bpy
 
 
-def hide_obj(obj, t):
-    bpy.context.scene.frame_set(t)
-    obj.hide = True
-    obj.keyframe_insert('hide')      
-    obj.hide_render = True
-    obj.keyframe_insert('hide_render')
-
-
-def unhide_obj(obj, t):
-    bpy.context.scene.frame_set(t)
-    obj.hide = False
-    obj.keyframe_insert('hide')      
-    obj.hide_render = False
-    obj.keyframe_insert('hide_render')
-
-
 def clone_obj(obj):
     bpy.context.scene.objects.active = obj
     bpy.ops.object.select_all(action='DESELECT')
@@ -50,14 +34,25 @@ def matches_template(template, string, pattern_type='any'):
 
 
 def discover_objects(
-        obj_name_template,
-        obj_type='EMPTY',
+        name_filter='{}',
+        obj_type='MESH',
         root=bpy.data,
 ):
-    objs = {int(idx):obj
-            for obj in root.objects
-            if (idx:=matches_template(obj_name_template, obj.name)) is not None
-            and ((obj_type is None) or (obj.type == obj_type))
-            }      
+    objs = {}
+    
+    if isinstance(name_filter, str):
+        if '{}' in name_filter:
+            name_filter_func = lambda name: matches_template(name_filter, name)
+    elif hasattr(name_filter, '__call__'):
+        name_filter_func = name_filter
+    else:
+        raise ValueError("name_filter must be a string or a callable function")
+    
+    for obj in root.objects:
+        idx = name_filter_func(obj.name)
+        if not (idx is False or idx is None):
+            if obj_type is None or obj.type == obj_type:
+                objs[idx] = obj
+        
     objs = dict(sorted(list(objs.items()), key=lambda x:x[0]))
     return objs
