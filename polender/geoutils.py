@@ -64,3 +64,16 @@ def alignment_quaternion(axes_obj_vs_world1 = ('Z', 'Y'), axes_obj_vs_world2 = (
     final_rot = up_rot @ rot
     
     return final_rot
+
+
+def pca_align(d):
+    # Center the data by subtracting the mean
+    d_centered = d - np.mean(d, axis=0)
+
+    # Perform SVD
+    U, S, Vt = np.linalg.svd(d_centered, full_matrices=False)
+
+    # Project the data onto the first 3 principal components
+    d_pcad = np.dot(d_centered, Vt.T[:, :3])
+
+    return d_pcad
